@@ -1,11 +1,11 @@
 from livekit.agents import llm, ChatContext, Agent
-from agent.prompts import system_prompts
+from prompts import system_prompts
 from openai import AsyncOpenAI
 from .session_data import SessionData
 import logging
-from ..tools.supabase_tools import SupabaseHelper
-from agent import config
-from ..tools.langchain_tools import LangChainAgentHelper
+from tools.supabase_tools import SupabaseHelper
+import config
+from tools.langchain_tools import LangChainAgentHelper
 from livekit.agents.llm import ChatMessage 
 
 

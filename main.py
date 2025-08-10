@@ -3,14 +3,14 @@ import logging
 import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, Any
-from .tools.supabase_tools import SupabaseHelper
+from tools.supabase_tools import SupabaseHelper
 from livekit.agents import JobContext, AgentSession, JobRequest, Worker, WorkerOptions
 from livekit import rtc
-from .agents.intake_agent import IntakeAgent
-from .agents.assistant_agent import AssistantAgent
-from .agents.session_data import SessionData
-from agent import config
-from .prompts import system_prompts
+from agents.intake_agent import IntakeAgent
+from agents.assistant_agent import AssistantAgent
+from agents.session_data import SessionData
+import config
+from prompts import system_prompts
 from livekit.plugins import silero, sarvam
 
 from livekit.plugins.openai import LLM as OpenAI_LLM, TTS as OpenAI_TTS

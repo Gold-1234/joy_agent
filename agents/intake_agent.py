@@ -1,10 +1,10 @@
 import logging
 from datetime import datetime
 from livekit.agents import Agent, function_tool, RunContext
-from ..prompts import system_prompts
+from prompts import system_prompts
 from .assistant_agent import AssistantAgent
 from .session_data import SessionData
-from ..tools.supabase_tools import SupabaseHelper, save_user_data_to_backend
+from tools.supabase_tools import SupabaseHelper, save_user_data_to_backend
 from dateutil.parser import parse
 from livekit.agents import ChatContext, ChatMessage
 

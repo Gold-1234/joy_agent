@@ -1,6 +1,6 @@
 import aiohttp
 from supabase import create_client, Client
-from .. import config
+import config
 import logging
 
 
