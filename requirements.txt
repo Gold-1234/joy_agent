@@ -1,0 +1,21 @@
+# Python dependencies for the LiveKit AI Agent application
+
+# --- Core LiveKit libraries ---
+livekit-agents
+livekit==1.0.12
+
+# --- AI and Plugin dependencies ---
+openai
+requests
+livekit-plugins-openai
+livekit-plugins-deepgram
+livekit-plugins-cartesia
+livekit-plugins-silero
+livekit-plugins-turn-detector
+
+# --- Database and LangChain dependencies ---
+supabase
+langchain-community
+langchain-openai
+langchain-core
+langchain
