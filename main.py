@@ -11,7 +11,7 @@ from agents.assistant_agent import AssistantAgent
 from agents.session_data import SessionData
 import config
 from prompts import system_prompts
-from livekit.plugins import silero, sarvam
+from livekit.plugins import silero
 
 from livekit.plugins.openai import LLM as OpenAI_LLM, TTS as OpenAI_TTS
 from livekit.plugins.deepgram import STT as Deepgram_STT
