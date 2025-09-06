@@ -5,21 +5,20 @@ from langchain.agents import AgentExecutor, create_openai_tools_agent, Tool
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import AIMessage, HumanMessage
 from .supabase_tools import SupabaseHelper
+import config
 
 class LangChainAgentHelper:
     def __init__(self, supabase_client, system_prompt: str):
-        self.chat_history = []
-        # 1. Configure LangChain Components
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        vector_store = SupabaseVectorStore(
+        self.llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=config.OPENAI_API_KEY)
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=config.OPENAI_API_KEY)
+        self.vector_store = SupabaseVectorStore(
             client=supabase_client,
             table_name="conversations",
             query_name="match_conversation",
-            embedding=embeddings,
+            embedding=self.embeddings,
         )
         
-        retriever = vector_store.as_retriever()
+        retriever = self.vector_store.as_retriever()
 
         # 2. Create the RAG Tool
         rag_tool = Tool(
@@ -28,7 +27,6 @@ class LangChainAgentHelper:
             description="Use this to search the conversation history for specific facts, details, or context from the user's past conversations. Use this if the user asks a question about something they've said before.",
         )
         
-        # 3. Create the Agent Prompt
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
@@ -37,16 +35,13 @@ class LangChainAgentHelper:
         ])
 
         # 4. Create the LangChain Agent
-        agent = create_openai_tools_agent(llm, [rag_tool], prompt)
+        agent = create_openai_tools_agent(self.llm, [rag_tool], prompt)
         self.agent_executor = AgentExecutor(agent=agent, tools=[rag_tool], verbose=True)
-        self.vector_store = vector_store
 
-   # In your LangChainAgentHelper class
 
     async def get_response(self, user_message: str, chat_history: list):
         """Gets a response from the agent, which decides to use RAG or not."""
 
-        # Convert the incoming LiveKit history to the LangChain message format
         lc_chat_history = []
         for msg in chat_history:
             if msg.role == 'user':

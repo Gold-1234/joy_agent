@@ -1,89 +1,63 @@
-import json
+from livekit.agents import Agent, llm, AgentSession
 import logging
-import asyncio
-from livekit.agents import JobContext, llm, stt, tts, AgentSession, ChatContext
 from livekit import rtc
-from .intake_agent import IntakeAgent
-from .assistant_agent import AssistantAgent
-from .. import config
-from ..tools.supabase_tools import SupabaseHelper
-from livekit.plugins.openai import LLM as OpenAI_LLM, TTS as OpenAI_TTS
-from livekit.plugins.deepgram import STT as Deepgram_STT
-from dataclasses import dataclass, field
-from typing import Dict, Any
 from .session_data import SessionData
+import asyncio
+
+logger = logging.getLogger("livekit.BASE_AGENT")
+logger.info("BASE_AGENT")
 
 
-logging.basicConfig(level=logging.INFO)
+class BaseChatAgent(Agent):
+    def __init__(self, room: rtc.room, session_data: SessionData, instructions="", **kwargs):
+        super().__init__(instructions=instructions, **kwargs)
+        self.room = room
+        self.session_data = session_data
+        self._exit_timer = None
+        
+    async def _exit_after_timeout(self, seconds: int):
+            try:
+                await asyncio.sleep(seconds)
+                logger.info(f"No user activity for {seconds}s. Closing session...")
+                await self.session.aclose()  # ends agent session
+                # await self.room.disconnect()
+            except asyncio.CancelledError:
+                pass
 
+    async def on_user_turn_completed(
+        self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
+    ) -> None:
+        logger.info(f"chat_history after user turn completed :: {self.session_data.chat_history}")
+        logger.info(f"User turn completed : {new_message}")
 
+        text = new_message.content[0]
+        self.session_data.chat_history.append({"role": "user", "content": text})
 
-class BaseAgent:
-    def __init__(self):
-        self.db_helper = SupabaseHelper()
-        self.llm = OpenAI_LLM(api_key=config.OPENAI_API_KEY)
-        self.stt = Deepgram_STT(api_key=config.DEEPGRAM_API_KEY)
-        self.tts = OpenAI_TTS(api_key=config.OPENAI_API_KEY)
+        logger.info(f"chat :: {self.chat_ctx}")
+        last_item = self.chat_ctx.items[-1]
 
-    async def process_job(self, ctx: JobContext):
-        logging.info("Processing job...")
-
-        # 1. Create an asyncio.Event to signal when the job is done
-        shutdown_event = asyncio.Event()
-
-        # 2. Define a callback to be called when the job is shutting down
-        def on_shutdown(reason):
-            logging.info(f"Job is shutting down: {reason}")
-            shutdown_event.set()
-
-        ctx.add_participant_entrypoint(self._handle_participant)
-        ctx.add_shutdown_callback(on_shutdown)
-        await ctx.connect()
-        logging.info("Agent connected to the room")
-        await shutdown_event.wait()
-
-    async def _handle_participant(self, ctx: JobContext, participant: rtc.RemoteParticipant):
-        logging.info(f"Handling participant: {participant.identity} - {participant.metadata}")
-        print(participant)
-        metadata_str = participant.metadata
-        if not metadata_str:
-            logging.warning(f"Participant {participant.identity} has no metadata, skipping.")
-            return
-
-        try:
-            metadata = json.loads(metadata_str or "{}")
-            session_data = SessionData(
-                is_new_user=metadata.get("isNewUser", False),
-                device_id=participant.identity,
-                child_profile=metadata
+        if "parent mode" in text.lower() or "parental mode" in text.lower() or "parent" in text.lower():
+            logger.info("Switching to ParentalModeAgent...")
+            from agents.parental_mode_agent import ParentalModeAgent
+            self.session.update_agent(
+                ParentalModeAgent(room=self.room, session_data=self.session_data)
             )
-        except json.JSONDecodeError:
-            logging.error(f"Failed to parse metadata for participant {participant.identity}")
-            return
+            logger.info("Handoff to ParentalModeAgent completed.")
 
-        # active_agent = None
-        # if metadata.get("isNewUser", False):
-        #     logging.info(f"Routing to IntakeAgent for new user: {participant.identity}")
-        #     active_agent = IntakeAgent(llm=self.llm, stt=self.stt, tts=self.tts, device_id=participant.identity)
-        # else:
-        #     logging.info(f"Routing to AssistantAgent for returning user: {metadata.get('name')}")
-        #     active_agent = AssistantAgent(llm=self.llm, stt=self.stt, tts=self.tts, child_profile=metadata)
+        if last_item.type == "message":
+            if last_item.role == "assistant":
+                text = last_item.text_content
+                if text:
+                    self.session_data.chat_history.append({"role": "assistant", "content": text})
+                    logger.info(f"Saved assistant msg: {text}")
+        else:
+            pass
+        if self._exit_timer and not self._exit_timer.done():
+            self._exit_timer.cancel()
 
-        # if active_agent:
-        #     await active_agent.start(ctx)
+        # start a new exit timer
+        self._exit_timer = asyncio.create_task(self._exit_after_timeout(60))  # 60s timeout
 
-        session = AgentSession[SessionData](
-            userdata=session_data,
-            llm=self.llm,
-            stt=self.stt,
-            tts=self.tts
-        )
-
-        if session_data.is_new_user:
-            logging.info(f"Routing to intage agent for new user : {participant.identity}")
-            active_agent = IntakeAgent()
-        else :
-            logging.info(f"Returning to assistant agent for returning user : {participant.identity}")
-            active_agent = AssistantAgent()
+        
+        
             
-        await session.start(agent=active_agent, room=ctx.room)
